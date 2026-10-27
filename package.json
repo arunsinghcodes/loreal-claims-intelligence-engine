@@ -1,0 +1,25 @@
+{
+  "name": "loreal-claims-intelligence-engine",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently -k -n WEB,API \"pnpm --dir apps/web dev\" \"pnpm --dir apps/api start:dev\"",
+    "build": "pnpm --dir apps/web build && pnpm --dir apps/api build",
+    "test": "pnpm --dir apps/api test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.6.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}
