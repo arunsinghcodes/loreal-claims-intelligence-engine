@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AssessClaimDto } from './dto/assess-claim.dto.js';
 import { AiAssessmentService } from '../ai-assessment/ai-assessment.service.js';
+import { NotFoundException } from '@nestjs/common';
 
 @Injectable()
 export class ClaimsService {
@@ -95,4 +96,70 @@ export class ClaimsService {
       );
     }
   }
+
+  async findById(id: string) {
+  const claim = await this.prisma.claim.findUnique({
+    where: { id },
+    include: {
+      assessments: {
+        orderBy: {
+          createdAt: 'desc',
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new NotFoundException(`Claim with ID ${id} was not found`);
+  }
+
+  return claim;
+}
+
+async findAll(page = 1, limit = 10) {
+  const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+  const safeLimit =
+    Number.isInteger(limit) && limit > 0
+      ? Math.min(limit, 50)
+      : 10;
+
+  const [claims, total] = await this.prisma.$transaction([
+    this.prisma.claim.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
+      select: {
+        id: true,
+        productName: true,
+        description: true,
+        submittedBy: true,
+        createdAt: true,
+        updatedAt: true,
+        assessments: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            verdict: true,
+            confidenceScore: true,
+            createdAt: true,
+            completedAt: true,
+          },
+        },
+      },
+    }),
+    this.prisma.claim.count(),
+  ]);
+
+  return {
+    data: claims,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit),
+    },
+  };
+}
 }

@@ -1,5 +1,4 @@
-
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { AssessClaimDto } from './dto/assess-claim.dto.js';
 import { ClaimsService } from './claims.service.js';
 
@@ -10,5 +9,18 @@ export class ClaimsController {
   @Post('assess')
   async assess(@Body() dto: AssessClaimDto) {
     return this.claimsService.assess(dto);
+  }
+
+  @Get()
+  findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.claimsService.findAll(
+      page === undefined ? 1 : Number(page),
+      limit === undefined ? 10 : Number(limit),
+    );
+  }
+
+  @Get(':id')
+  findById(@Param('id') id: string) {
+    return this.claimsService.findById(id);
   }
 }
