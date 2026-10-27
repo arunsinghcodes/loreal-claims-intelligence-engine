@@ -66,3 +66,7 @@ docker-compose.override.yml
 
 # Package manager caches
 .pnpm-store/
+
+
+# Generated Prisma Client
+apps/api/src/generated/prisma/
