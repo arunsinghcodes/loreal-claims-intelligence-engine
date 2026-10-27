@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AssessmentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum ClaimVerdict {
+  JUSTIFIED
+  NOT_JUSTIFIED
+  INCONCLUSIVE
+}
+
+model Claim {
+  id          String       @id @default(uuid())
+  productName String?
+  description String       @db.Text
+  submittedBy String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  assessments Assessment[]
+}
+
+model Assessment {
+  id              String           @id @default(uuid())
+  claimId         String
+  evidence        String           @db.Text
+  verdict         ClaimVerdict?
+  confidenceScore Float?
+  reasoning       String?          @db.Text
+  limitations     String[]         @default([])
+  status          AssessmentStatus @default(PENDING)
+  model           String?
+  promptVersion   String?
+  createdAt       DateTime         @default(now())
+  completedAt     DateTime?
+
+  claim Claim @relation(fields: [claimId], references: [id], onDelete: Restrict)
+
+  @@index([claimId, createdAt])
+  @@index([status, createdAt])
+}
