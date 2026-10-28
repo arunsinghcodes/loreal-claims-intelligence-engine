@@ -824,12 +824,31 @@ function App() {
                 Showing <strong>{filteredClaims.length}</strong> of{" "}
                 <strong>{claims.length}</strong> claims
               </span>
+
               <div className="pagination-controls">
-                <button disabled aria-label="Previous page">
+                <button
+                  disabled={isLoading || apiPage <= 1}
+                  aria-label="Previous page"
+                  onClick={() => void loadClaims(apiPage - 1)}
+                >
                   <ChevronLeft size={16} />
                 </button>
-                <button className="page-number">1</button>
-                <button disabled aria-label="Next page">
+
+                <button
+                  className="page-number"
+                  disabled
+                  aria-label={`Page ${apiPage} of ${apiTotalPages}`}
+                >
+                  {apiPage}
+                </button>
+
+                <span className="pagination-total">of {apiTotalPages}</span>
+
+                <button
+                  disabled={isLoading || apiPage >= apiTotalPages}
+                  aria-label="Next page"
+                  onClick={() => void loadClaims(apiPage + 1)}
+                >
                   <ChevronRight size={16} />
                 </button>
               </div>
