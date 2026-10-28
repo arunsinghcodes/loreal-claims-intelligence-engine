@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { ClaimsResponse } from "../types/claims";
+import type { Claim, ClaimAssessment, ClaimsResponse } from "../types/claims";
 
 export interface GetClaimsParams {
   page?: number;
@@ -24,6 +24,19 @@ export interface AssessClaimResponse {
   message: string;
 }
 
+export interface ClaimAssessmentDetail extends ClaimAssessment {
+  claimId: string;
+  evidence: string;
+  reasoning: string | null;
+  limitations: string[];
+  model: string | null;
+  promptVersion: string | null;
+}
+
+export interface ClaimDetailResponse extends Omit<Claim, "assessments"> {
+  assessments: ClaimAssessmentDetail[];
+}
+
 export function getClaims({
   page = 1,
   limit = 10,
@@ -43,4 +56,8 @@ export function assessClaim(
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function getClaimById(id: string): Promise<ClaimDetailResponse> {
+  return apiRequest<ClaimDetailResponse>(`/claims/${encodeURIComponent(id)}`);
 }

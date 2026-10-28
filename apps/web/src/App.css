@@ -2072,3 +2072,40 @@ select:focus-visible {
 .claim-title-button:hover .claim-copy strong {
   color: #ff9aa8;
 }
+
+
+.assessment-detail-section {
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+
+.assessment-detail-section .detail-label {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.assessment-detail-section .detail-claim {
+  margin: 0;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.evidence-text {
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+
+.limitations-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.limitations-list li::marker {
+  color: var(--red);
+}
+

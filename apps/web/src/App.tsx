@@ -25,7 +25,12 @@ import {
   X,
 } from "lucide-react";
 import "./App.css";
-import { assessClaim, getClaims } from "./api/claims";
+import {
+  assessClaim,
+  getClaims,
+  getClaimById,
+  type ClaimDetailResponse,
+} from "./api/claims";
 import type {
   Claim as ApiClaim,
   ClaimVerdict,
@@ -176,6 +181,13 @@ function App() {
     submittedBy: "Research Team",
   });
 
+  const [claimDetails, setClaimDetails] = useState<ClaimDetailResponse | null>(
+    null,
+  );
+
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+
   async function loadClaims(page = apiPage) {
     setIsLoading(true);
     setApiError(null);
@@ -280,6 +292,26 @@ function App() {
       await loadClaims(1);
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function openClaimDetails(claim: Claim) {
+    setSelectedClaim(claim);
+    setClaimDetails(null);
+    setDetailsError(null);
+    setDetailsLoading(true);
+
+    try {
+      const details = await getClaimById(claim.id);
+      setClaimDetails(details);
+    } catch (error) {
+      setDetailsError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load assessment details.",
+      );
+    } finally {
+      setDetailsLoading(false);
     }
   }
 
@@ -722,7 +754,7 @@ function App() {
                       <td>
                         <button
                           className="claim-title-button"
-                          onClick={() => setSelectedClaim(claim)}
+                          onClick={() => void openClaimDetails(claim)}
                         >
                           <span className="product-symbol">
                             <FlaskConical size={17} />
@@ -760,7 +792,7 @@ function App() {
                         <button
                           className="row-action"
                           aria-label={`View ${claim.product}`}
-                          onClick={() => setSelectedClaim(claim)}
+                          onClick={() => void openClaimDetails(claim)}
                         >
                           <ArrowRight size={16} />
                         </button>
@@ -954,7 +986,11 @@ function App() {
               </div>
               <button
                 className="icon-button"
-                onClick={() => setSelectedClaim(null)}
+                onClick={() => {
+                  setSelectedClaim(null);
+                  setClaimDetails(null);
+                  setDetailsError(null);
+                }}
                 aria-label="Close"
               >
                 <X size={19} />
@@ -981,19 +1017,89 @@ function App() {
                   </strong>
                 </div>
               </div>
-              <div className="detail-notice">
-                <ShieldCheck size={17} />
-                <p>
-                  This prototype view shows claim metadata. The live API
-                  integration will populate full AI reasoning and evidence
-                  limitations in the next step.
-                </p>
-              </div>
+
+              {detailsLoading && (
+                <div className="detail-notice" role="status">
+                  Loading assessment details...
+                </div>
+              )}
+
+              {detailsError && (
+                <div className="detail-notice" role="alert">
+                  <p>{detailsError}</p>
+                  <button
+                    className="secondary-button"
+                    onClick={() => void openClaimDetails(selectedClaim)}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {!detailsLoading && !detailsError && claimDetails && (
+                <>
+                  {claimDetails.assessments[0] && (
+                    <>
+                      <div className="assessment-detail-section">
+                        <span className="detail-label">AI REASONING</span>
+                        <p className="detail-claim">
+                          {claimDetails.assessments[0].reasoning ||
+                            "No reasoning was returned for this assessment."}
+                        </p>
+                      </div>
+
+                      <div className="assessment-detail-section">
+                        <span className="detail-label">
+                          SCIENTIFIC EVIDENCE
+                        </span>
+                        <p className="detail-claim evidence-text">
+                          {claimDetails.assessments[0].evidence}
+                        </p>
+                      </div>
+
+                      <div className="assessment-detail-section">
+                        <span className="detail-label">
+                          EVIDENCE LIMITATIONS
+                        </span>
+
+                        {claimDetails.assessments[0].limitations.length > 0 ? (
+                          <ul className="limitations-list">
+                            {claimDetails.assessments[0].limitations.map(
+                              (limitation, index) => (
+                                <li key={`${index}-${limitation}`}>
+                                  {limitation}
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        ) : (
+                          <p className="detail-claim">
+                            No limitations were returned.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="detail-notice">
+                        <ShieldCheck size={17} />
+                        <p>
+                          AI-generated analysis is decision support only.
+                          Scientific and regulatory approval requires qualified
+                          human review.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </div>
             <div className="modal-actions">
               <button
                 className="secondary-button"
-                onClick={() => setSelectedClaim(null)}
+                onClick={() => {
+                  setSelectedClaim(null);
+                  setClaimDetails(null);
+                  setDetailsError(null);
+                }}
               >
                 Close
               </button>
