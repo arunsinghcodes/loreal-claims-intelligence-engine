@@ -4,6 +4,8 @@ import type { Claim, ClaimAssessment, ClaimsResponse } from "../types/claims";
 export interface GetClaimsParams {
   page?: number;
   limit?: number;
+  search?: string;
+  verdict?: string;
 }
 
 export interface AssessClaimPayload {
@@ -40,11 +42,16 @@ export interface ClaimDetailResponse extends Omit<Claim, "assessments"> {
 export function getClaims({
   page = 1,
   limit = 10,
+  search,
+  verdict,
 }: GetClaimsParams = {}): Promise<ClaimsResponse> {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit),
   });
+
+  if (search?.trim()) params.set('search', search.trim());
+  if (verdict && verdict !== 'ALL') params.set('verdict', verdict);
 
   return apiRequest<ClaimsResponse>(`/claims?${params}`);
 }

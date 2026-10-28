@@ -12,10 +12,17 @@ export class ClaimsController {
   }
 
   @Get()
-  findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('verdict') verdict?: string,
+  ) {
     return this.claimsService.findAll(
       page === undefined ? 1 : Number(page),
       limit === undefined ? 10 : Number(limit),
+      search,
+      verdict,
     );
   }
 
