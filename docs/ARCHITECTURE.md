@@ -154,3 +154,76 @@ The frontend, backend, shared contracts, and documentation live in one repositor
 Potential extensions include PDF ingestion, evidence extraction and citation tracking, evaluator approval workflows, authentication and role-based access control, audit trails, monitoring, multilingual support, and integration with enterprise research systems.
 
 These capabilities are future roadmap items rather than requirements for the initial prototype.
+
+## 10. Detailed Architecture and Assessment Lifecycle Diagrams
+
+The following diagrams supplement the existing architecture overview above. The original diagram and all existing sections have been retained.
+
+### 10.1 End-to-End System Architecture
+
+```mermaid
+flowchart TD
+   U["Scientist / Evaluator"]
+   UI["React + TypeScript + Vite"]
+   API["NestJS REST API"]
+   CS["Claims Service"]
+   DB[("PostgreSQL")]
+   PR["Prisma ORM"]
+   AI["AI Assessment Service"]
+   GM["Google Gemini API"]
+
+   U --> UI
+   UI -->|"POST /api/claims/assess"| API
+   UI -->|"GET /api/claims"| API
+   UI -->|"GET /api/claims/:id"| API
+   API --> CS
+   CS --> PR
+   PR <--> DB
+   CS -->|"Claim + evidence"| AI
+   AI -->|"Structured assessment request"| GM
+   GM -->|"Structured assessment response"| AI
+   AI --> CS
+   CS -->|"Persist verdict, confidence, reasoning and limitations"| PR
+   CS -->|"JSON response"| API
+   API --> UI
+```
+
+**Flow summary**
+
+- **React frontend:** collects submissions and presents claims, assessment results, search, filters, and pagination.
+- **NestJS REST API:** validates requests and coordinates the claim and assessment workflow.
+- **Claims service:** persists the claim and evidence, calls the AI assessment service, and stores the assessment outcome.
+- **Prisma ORM and PostgreSQL:** persist claims and assessment history.
+- **AI assessment service:** sends the claim and evidence to Google Gemini and validates the structured response.
+- **Human evaluator:** reviews the AI-generated decision support; the result is not scientific or regulatory approval.
+
+The endpoint paths shown above reflect the current API routes. The assessment endpoint waits for the AI assessment to complete before returning its result.
+
+### 10.2 Assessment Request Lifecycle
+
+```mermaid
+flowchart TD
+    A["Submit claim and scientific evidence"] --> B["Validate request"]
+    B --> C["Persist claim and create PENDING assessment"]
+    C --> D["Send claim and evidence to Gemini"]
+    D --> E{"AI assessment successful?"}
+    E -->|"Yes"| F["Validate structured model output"]
+    F --> G["Persist verdict, confidence, reasoning and limitations"]
+    G --> H["Mark assessment COMPLETED"]
+    H --> I["Return assessment result to React"]
+    E -->|"No"| J["Mark assessment FAILED"]
+    J --> K["Return controlled error response"]
+    I --> L["Display result for human review"]
+```
+
+**Lifecycle notes**
+
+1. The frontend submits the product name, claim, evidence, and submitter details.
+2. The backend validates the request and saves the claim plus an assessment in `PENDING` status.
+3. The AI assessment service sends the claim and evidence to Gemini.
+4. The backend validates the structured AI response before saving it.
+5. On success, the assessment is updated with its verdict, confidence score, reasoning, limitations, model metadata, and completion timestamp, then marked `COMPLETED`.
+6. If the AI assessment fails, the backend attempts to mark the assessment `FAILED` and returns a controlled error response.
+7. The frontend displays the result when successful. A qualified human reviewer remains responsible for the final decision.
+
+**Reliability consideration:** if the AI call succeeds but saving the result fails, the system must not present the assessment as successfully persisted. The assessment record should be checked and reconciled before a retry to avoid accidental duplicate submissions.
