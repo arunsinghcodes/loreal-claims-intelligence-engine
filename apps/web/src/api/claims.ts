@@ -1,0 +1,46 @@
+import { apiRequest } from "./client";
+import type { ClaimsResponse } from "../types/claims";
+
+export interface GetClaimsParams {
+  page?: number;
+  limit?: number;
+}
+
+export interface AssessClaimPayload {
+  productName: string;
+  claim: string;
+  evidence: string;
+  submittedBy: string;
+}
+
+export interface AssessClaimResponse {
+  claimId: string;
+  assessmentId: string;
+  status: "PENDING" | "COMPLETED" | "FAILED";
+  verdict: "JUSTIFIED" | "NOT_JUSTIFIED" | "INCONCLUSIVE" | null;
+  confidenceScore: number | null;
+  reasoning?: string;
+  limitations?: string[];
+  message: string;
+}
+
+export function getClaims({
+  page = 1,
+  limit = 10,
+}: GetClaimsParams = {}): Promise<ClaimsResponse> {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+
+  return apiRequest<ClaimsResponse>(`/claims?${params}`);
+}
+
+export function assessClaim(
+  payload: AssessClaimPayload,
+): Promise<AssessClaimResponse> {
+  return apiRequest<AssessClaimResponse>("/claims/assess", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

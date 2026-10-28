@@ -1,5 +1,4 @@
-
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from "react";
 import {
   Activity,
   ArrowDownRight,
@@ -24,11 +23,17 @@ import {
   SlidersHorizontal,
   Sparkles,
   X,
-} from 'lucide-react';
-import "./App.css"
+} from "lucide-react";
+import "./App.css";
+import { assessClaim, getClaims } from "./api/claims";
+import type {
+  Claim as ApiClaim,
+  ClaimVerdict,
+  AssessmentStatus,
+} from "./types/claims";
 
-type Verdict = 'JUSTIFIED' | 'NOT_JUSTIFIED' | 'INCONCLUSIVE';
-type Status = 'COMPLETED' | 'PENDING' | 'FAILED';
+type Verdict = "JUSTIFIED" | "NOT_JUSTIFIED" | "INCONCLUSIVE";
+type Status = "COMPLETED" | "PENDING" | "FAILED";
 
 type Claim = {
   id: string;
@@ -43,61 +48,61 @@ type Claim = {
 
 const initialClaims: Claim[] = [
   {
-    id: 'CLM-2026-1042',
-    product: 'Revitalift Clinical',
-    claim: 'Reduces the appearance of wrinkles in 4 weeks',
-    date: 'Oct 27, 2026',
-    verdict: 'JUSTIFIED',
-    status: 'COMPLETED',
+    id: "CLM-2026-1042",
+    product: "Revitalift Clinical",
+    claim: "Reduces the appearance of wrinkles in 4 weeks",
+    date: "Oct 27, 2026",
+    verdict: "JUSTIFIED",
+    status: "COMPLETED",
     confidence: 94,
-    submittedBy: 'Research Team',
+    submittedBy: "Research Team",
   },
   {
-    id: 'CLM-2026-1041',
-    product: 'UV Defender SPF 50+',
-    claim: 'Provides broad-spectrum UV protection',
-    date: 'Oct 27, 2026',
-    verdict: 'INCONCLUSIVE',
-    status: 'COMPLETED',
+    id: "CLM-2026-1041",
+    product: "UV Defender SPF 50+",
+    claim: "Provides broad-spectrum UV protection",
+    date: "Oct 27, 2026",
+    verdict: "INCONCLUSIVE",
+    status: "COMPLETED",
     confidence: 95,
-    submittedBy: 'Clinical Research',
+    submittedBy: "Clinical Research",
   },
   {
-    id: 'CLM-2026-1040',
-    product: 'Glycolic Bright',
-    claim: 'Visibly improves skin radiance in 7 days',
-    date: 'Oct 26, 2026',
-    verdict: 'NOT_JUSTIFIED',
-    status: 'COMPLETED',
+    id: "CLM-2026-1040",
+    product: "Glycolic Bright",
+    claim: "Visibly improves skin radiance in 7 days",
+    date: "Oct 26, 2026",
+    verdict: "NOT_JUSTIFIED",
+    status: "COMPLETED",
     confidence: 88,
-    submittedBy: 'Product Innovation',
+    submittedBy: "Product Innovation",
   },
   {
-    id: 'CLM-2026-1039',
-    product: 'Hydra Genius',
-    claim: 'Provides 72-hour skin hydration',
-    date: 'Oct 26, 2026',
+    id: "CLM-2026-1039",
+    product: "Hydra Genius",
+    claim: "Provides 72-hour skin hydration",
+    date: "Oct 26, 2026",
     verdict: null,
-    status: 'PENDING',
+    status: "PENDING",
     confidence: null,
-    submittedBy: 'Research Team',
+    submittedBy: "Research Team",
   },
   {
-    id: 'CLM-2026-1038',
-    product: 'Elseve Hyaluron',
-    claim: 'Improves hair hydration after one use',
-    date: 'Oct 25, 2026',
-    verdict: 'JUSTIFIED',
-    status: 'COMPLETED',
+    id: "CLM-2026-1038",
+    product: "Elseve Hyaluron",
+    claim: "Improves hair hydration after one use",
+    date: "Oct 25, 2026",
+    verdict: "JUSTIFIED",
+    status: "COMPLETED",
     confidence: 91,
-    submittedBy: 'Haircare Science',
+    submittedBy: "Haircare Science",
   },
 ];
 
 const navItems = [
-  { label: 'Overview', icon: LayoutDashboard },
-  { label: 'Claims library', icon: FileText },
-  { label: 'Assessments', icon: FlaskConical },
+  { label: "Overview", icon: LayoutDashboard },
+  { label: "Claims library", icon: FileText },
+  { label: "Assessments", icon: FlaskConical },
 ];
 
 function VerdictBadge({ verdict }: { verdict: Verdict | null }) {
@@ -106,9 +111,9 @@ function VerdictBadge({ verdict }: { verdict: Verdict | null }) {
   }
 
   const labels: Record<Verdict, string> = {
-    JUSTIFIED: 'Justified',
-    NOT_JUSTIFIED: 'Not justified',
-    INCONCLUSIVE: 'Inconclusive',
+    JUSTIFIED: "Justified",
+    NOT_JUSTIFIED: "Not justified",
+    INCONCLUSIVE: "Inconclusive",
   };
 
   return (
@@ -123,35 +128,90 @@ function StatusBadge({ status }: { status: Status }) {
   return (
     <span className={`status status-${status.toLowerCase()}`}>
       <span className="status-dot" />
-      {status === 'COMPLETED'
-        ? 'Completed'
-        : status === 'PENDING'
-          ? 'Pending'
-          : 'Failed'}
+      {status === "COMPLETED"
+        ? "Completed"
+        : status === "PENDING"
+          ? "Pending"
+          : "Failed"}
     </span>
   );
 }
 
+function mapApiClaim(apiClaim: ApiClaim): Claim {
+  const assessment = apiClaim.assessments[0];
+
+  return {
+    id: apiClaim.id,
+    product: apiClaim.productName ?? "Unnamed product",
+    claim: apiClaim.description,
+    date: new Date(apiClaim.createdAt).toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    }),
+    verdict: (assessment?.verdict ?? null) as ClaimVerdict | null,
+    status: (assessment?.status ?? "PENDING") as AssessmentStatus,
+    confidence: assessment?.confidenceScore ?? null,
+    submittedBy: apiClaim.submittedBy ?? "Unknown",
+  };
+}
+
 function App() {
-  const [claims, setClaims] = useState(initialClaims);
-  const [activeNav, setActiveNav] = useState('Overview');
-  const [search, setSearch] = useState('');
-  const [verdictFilter, setVerdictFilter] = useState('ALL');
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiPage, setApiPage] = useState(1);
+  const [apiTotalPages, setApiTotalPages] = useState(1);
+  const [activeNav, setActiveNav] = useState("Overview");
+  const [search, setSearch] = useState("");
+  const [verdictFilter, setVerdictFilter] = useState("ALL");
   const [showForm, setShowForm] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [form, setForm] = useState({
-    productName: '',
-    claim: '',
-    evidence: '',
-    submittedBy: 'Research Team',
+    productName: "",
+    claim: "",
+    evidence: "",
+    submittedBy: "Research Team",
   });
 
-  const completed = claims.filter((claim) => claim.status === 'COMPLETED');
-  const justified = completed.filter((claim) => claim.verdict === 'JUSTIFIED').length;
-  const inconclusive = completed.filter((claim) => claim.verdict === 'INCONCLUSIVE').length;
-  const notJustified = completed.filter((claim) => claim.verdict === 'NOT_JUSTIFIED').length;
-  const pending = claims.filter((claim) => claim.status === 'PENDING').length;
+  async function loadClaims(page = apiPage) {
+    setIsLoading(true);
+    setApiError(null);
+
+    try {
+      const response = await getClaims({ page, limit: 10 });
+
+      setClaims(response.data.map(mapApiClaim));
+      setApiPage(response.pagination.page);
+      setApiTotalPages(response.pagination.totalPages);
+    } catch (error) {
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load claims from the server.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadClaims(1);
+  }, []);
+
+  const completed = claims.filter((claim) => claim.status === "COMPLETED");
+  const justified = completed.filter(
+    (claim) => claim.verdict === "JUSTIFIED",
+  ).length;
+  const inconclusive = completed.filter(
+    (claim) => claim.verdict === "INCONCLUSIVE",
+  ).length;
+  const notJustified = completed.filter(
+    (claim) => claim.verdict === "NOT_JUSTIFIED",
+  ).length;
+  const pending = claims.filter((claim) => claim.status === "PENDING").length;
 
   const filteredClaims = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -164,54 +224,63 @@ function App() {
         claim.id.toLowerCase().includes(query);
 
       const matchesVerdict =
-        verdictFilter === 'ALL' ||
-        (verdictFilter === 'PENDING'
-          ? claim.status === 'PENDING'
+        verdictFilter === "ALL" ||
+        (verdictFilter === "PENDING"
+          ? claim.status === "PENDING"
           : claim.verdict === verdictFilter);
 
       const matchesSection =
-        activeNav !== 'Assessments' || claim.status === 'COMPLETED';
+        activeNav !== "Assessments" || claim.status === "COMPLETED";
 
       return matchesSearch && matchesVerdict && matchesSection;
     });
   }, [claims, search, verdictFilter, activeNav]);
 
-  function updateForm(
-    field: keyof typeof form,
-    value: string,
-  ) {
+  function updateForm(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const newClaim: Claim = {
-      id: `DRAFT-${Date.now().toString().slice(-6)}`,
-      product: form.productName.trim(),
-      claim: form.claim.trim(),
-      date: new Date().toLocaleDateString('en-US', {
-        month: 'short',
-        day: '2-digit',
-        year: 'numeric',
-      }),
-      verdict: null,
-      status: 'PENDING',
-      confidence: null,
-      submittedBy: form.submittedBy,
-    };
+    if (isSubmitting) return;
 
-    setClaims((current) => [newClaim, ...current]);
-    setForm({
-      productName: '',
-      claim: '',
-      evidence: '',
-      submittedBy: 'Research Team',
-    });
-    setShowForm(false);
-    setActiveNav('Overview');
-    setVerdictFilter('ALL');
-    setSearch('');
+    setIsSubmitting(true);
+    setApiError(null);
+
+    try {
+      await assessClaim({
+        productName: form.productName.trim(),
+        claim: form.claim.trim(),
+        evidence: form.evidence.trim(),
+        submittedBy: form.submittedBy.trim() || "Research Team",
+      });
+
+      setForm({
+        productName: "",
+        claim: "",
+        evidence: "",
+        submittedBy: "Research Team",
+      });
+
+      setShowForm(false);
+      setActiveNav("Overview");
+      setVerdictFilter("ALL");
+      setSearch("");
+
+      await loadClaims(1);
+    } catch (error) {
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : "Assessment failed. Please check the server and try again.",
+      );
+
+      // The backend may save the claim even if AI assessment fails.
+      await loadClaims(1);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -224,7 +293,7 @@ function App() {
         />
       )}
 
-      <aside className={`sidebar ${mobileMenuOpen ? 'sidebar-open' : ''}`}>
+      <aside className={`sidebar ${mobileMenuOpen ? "sidebar-open" : ""}`}>
         <div className="brand">
           <div className="brand-mark">
             <FlaskConical size={21} strokeWidth={1.8} />
@@ -257,16 +326,16 @@ function App() {
           {navItems.map(({ label, icon: Icon }) => (
             <button
               key={label}
-              className={`nav-item ${activeNav === label ? 'nav-item-active' : ''}`}
+              className={`nav-item ${activeNav === label ? "nav-item-active" : ""}`}
               onClick={() => {
                 setActiveNav(label);
                 setMobileMenuOpen(false);
-                setVerdictFilter('ALL');
+                setVerdictFilter("ALL");
               }}
             >
               <Icon size={18} strokeWidth={1.8} />
               <span>{label}</span>
-              {label === 'Claims library' && (
+              {label === "Claims library" && (
                 <span className="nav-count">{claims.length}</span>
               )}
             </button>
@@ -280,7 +349,9 @@ function App() {
         </button>
         <button
           className="nav-item"
-          onClick={() => window.alert('Settings will be added in a later milestone.')}
+          onClick={() =>
+            window.alert("Settings will be added in a later milestone.")
+          }
         >
           <Settings2 size={18} />
           <span>Settings</span>
@@ -293,7 +364,9 @@ function App() {
             </div>
             <strong>Need a hand?</strong>
             <p>Learn how to review scientific claims and evidence.</p>
-            <button onClick={() => window.alert('Documentation will be added soon.')}>
+            <button
+              onClick={() => window.alert("Documentation will be added soon.")}
+            >
               Explore documentation <ArrowRight size={14} />
             </button>
           </div>
@@ -331,7 +404,7 @@ function App() {
             <button
               className="icon-button notification-button"
               aria-label="Notifications"
-              onClick={() => window.alert('No new notifications.')}
+              onClick={() => window.alert("No new notifications.")}
             >
               <Bell size={18} />
               <i />
@@ -342,24 +415,39 @@ function App() {
         </header>
 
         <div className="page-content">
+          {apiError && (
+            <div role="alert" className="api-error">
+              {apiError}
+              <button onClick={() => void loadClaims(1)}>Retry</button>
+            </div>
+          )}
+
+          {isLoading && (
+            <p role="status" className="api-loading">
+              Loading claims from the server...
+            </p>
+          )}
           <section className="page-heading">
             <div>
               <div className="eyebrow">
                 <Sparkles size={14} /> SCIENCE-LED. EVIDENCE-FIRST.
               </div>
               <h1>
-                {activeNav === 'Assessments'
-                  ? 'Assessments'
-                  : activeNav === 'Claims library'
-                    ? 'Claims library'
-                    : 'Claims overview'}
+                {activeNav === "Assessments"
+                  ? "Assessments"
+                  : activeNav === "Claims library"
+                    ? "Claims library"
+                    : "Claims overview"}
               </h1>
               <p>
-                Evaluate product claims against scientific evidence with AI-assisted
-                analysis.
+                Evaluate product claims against scientific evidence with
+                AI-assisted analysis.
               </p>
             </div>
-            <button className="primary-button" onClick={() => setShowForm(true)}>
+            <button
+              className="primary-button"
+              onClick={() => setShowForm(true)}
+            >
               <Plus size={17} /> New assessment
             </button>
           </section>
@@ -371,8 +459,9 @@ function App() {
               </div>
               <h2>Evidence that earns confidence.</h2>
               <p>
-                Bring scientific evidence and product claims together. Get structured
-                AI-assisted insights to support informed human review.
+                Bring scientific evidence and product claims together. Get
+                structured AI-assisted insights to support informed human
+                review.
               </p>
               <button
                 className="banner-button"
@@ -398,9 +487,14 @@ function App() {
           </section>
 
           <section className="metrics-grid" aria-label="Claims metrics">
-            <button className="metric-card" onClick={() => setVerdictFilter('ALL')}>
+            <button
+              className="metric-card"
+              onClick={() => setVerdictFilter("ALL")}
+            >
               <div className="metric-top">
-                <span className="metric-icon icon-dark"><FileText size={19} /></span>
+                <span className="metric-icon icon-dark">
+                  <FileText size={19} />
+                </span>
                 <span className="metric-period">All records</span>
               </div>
               <div className="metric-value">{claims.length}</div>
@@ -413,10 +507,12 @@ function App() {
 
             <button
               className="metric-card"
-              onClick={() => setVerdictFilter('JUSTIFIED')}
+              onClick={() => setVerdictFilter("JUSTIFIED")}
             >
               <div className="metric-top">
-                <span className="metric-icon icon-green"><CheckCircle2 size={19} /></span>
+                <span className="metric-icon icon-green">
+                  <CheckCircle2 size={19} />
+                </span>
                 <span className="metric-period">Evidence supports</span>
               </div>
               <div className="metric-value">{justified}</div>
@@ -429,10 +525,12 @@ function App() {
 
             <button
               className="metric-card"
-              onClick={() => setVerdictFilter('INCONCLUSIVE')}
+              onClick={() => setVerdictFilter("INCONCLUSIVE")}
             >
               <div className="metric-top">
-                <span className="metric-icon icon-amber"><Clock3 size={19} /></span>
+                <span className="metric-icon icon-amber">
+                  <Clock3 size={19} />
+                </span>
                 <span className="metric-period">More evidence</span>
               </div>
               <div className="metric-value">{inconclusive}</div>
@@ -445,10 +543,12 @@ function App() {
 
             <button
               className="metric-card"
-              onClick={() => setVerdictFilter('NOT_JUSTIFIED')}
+              onClick={() => setVerdictFilter("NOT_JUSTIFIED")}
             >
               <div className="metric-top">
-                <span className="metric-icon icon-red"><ShieldCheck size={19} /></span>
+                <span className="metric-icon icon-red">
+                  <ShieldCheck size={19} />
+                </span>
                 <span className="metric-period">Not supported</span>
               </div>
               <div className="metric-value">{notJustified}</div>
@@ -467,7 +567,9 @@ function App() {
                   <h3>Assessment distribution</h3>
                   <p>Overview of completed assessments</p>
                 </div>
-                <span className="subtle-icon"><Activity size={17} /></span>
+                <span className="subtle-icon">
+                  <Activity size={17} />
+                </span>
               </div>
               <div className="distribution-content">
                 <div
@@ -518,26 +620,33 @@ function App() {
                 <button
                   className="text-button"
                   onClick={() => {
-                    setVerdictFilter('PENDING');
-                    setActiveNav('Claims library');
+                    setVerdictFilter("PENDING");
+                    setActiveNav("Claims library");
                   }}
                 >
                   View queue <ArrowRight size={14} />
                 </button>
               </div>
               <div className="queue-stat">
-                <div className="queue-stat-icon"><Clock3 size={20} /></div>
+                <div className="queue-stat-icon">
+                  <Clock3 size={20} />
+                </div>
                 <div>
                   <strong>{pending}</strong>
-                  <span>Pending assessment{pending === 1 ? '' : 's'}</span>
+                  <span>Pending assessment{pending === 1 ? "" : "s"}</span>
                 </div>
               </div>
               <div className="queue-divider" />
               <div className="queue-note">
-                <div className="queue-note-icon"><FileCheck2 size={17} /></div>
+                <div className="queue-note-icon">
+                  <FileCheck2 size={17} />
+                </div>
                 <p>
                   <strong>Human review matters</strong>
-                  <span>Validate study design, results and limitations before approving claims.</span>
+                  <span>
+                    Validate study design, results and limitations before
+                    approving claims.
+                  </span>
                 </p>
               </div>
             </div>
@@ -552,8 +661,8 @@ function App() {
               <button
                 className="secondary-button"
                 onClick={() => {
-                  setActiveNav('Claims library');
-                  setVerdictFilter('ALL');
+                  setActiveNav("Claims library");
+                  setVerdictFilter("ALL");
                 }}
               >
                 View all claims <ArrowRight size={15} />
@@ -571,7 +680,7 @@ function App() {
                 {search && (
                   <button
                     className="search-clear"
-                    onClick={() => setSearch('')}
+                    onClick={() => setSearch("")}
                     aria-label="Clear search"
                   >
                     <X size={14} />
@@ -629,7 +738,9 @@ function App() {
                         <div className="submitted-date">{claim.date}</div>
                         <div className="submitted-by">{claim.submittedBy}</div>
                       </td>
-                      <td><VerdictBadge verdict={claim.verdict} /></td>
+                      <td>
+                        <VerdictBadge verdict={claim.verdict} />
+                      </td>
                       <td>
                         {claim.confidence !== null ? (
                           <div className="confidence-cell">
@@ -642,7 +753,9 @@ function App() {
                           <span className="muted-dash">—</span>
                         )}
                       </td>
-                      <td><StatusBadge status={claim.status} /></td>
+                      <td>
+                        <StatusBadge status={claim.status} />
+                      </td>
                       <td>
                         <button
                           className="row-action"
@@ -664,8 +777,8 @@ function App() {
                   <button
                     className="text-button"
                     onClick={() => {
-                      setSearch('');
-                      setVerdictFilter('ALL');
+                      setSearch("");
+                      setVerdictFilter("ALL");
                     }}
                   >
                     Clear filters
@@ -676,36 +789,60 @@ function App() {
 
             <div className="table-footer">
               <span>
-                Showing <strong>{filteredClaims.length}</strong> of{' '}
+                Showing <strong>{filteredClaims.length}</strong> of{" "}
                 <strong>{claims.length}</strong> claims
               </span>
               <div className="pagination-controls">
-                <button disabled aria-label="Previous page"><ChevronLeft size={16} /></button>
+                <button disabled aria-label="Previous page">
+                  <ChevronLeft size={16} />
+                </button>
                 <button className="page-number">1</button>
-                <button disabled aria-label="Next page"><ChevronRight size={16} /></button>
+                <button disabled aria-label="Next page">
+                  <ChevronRight size={16} />
+                </button>
               </div>
             </div>
           </section>
 
           <footer className="page-footer">
             <span>© 2026 L'Oréal Claims Intelligence Engine · Prototype</span>
-            <span><ShieldCheck size={14} /> Human review required for scientific decisions</span>
+            <span>
+              <ShieldCheck size={14} /> Human review required for scientific
+              decisions
+            </span>
           </footer>
         </div>
       </main>
 
       {showForm && (
-        <div className="modal-backdrop" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setShowForm(false);
-        }}>
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title">
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowForm(false);
+          }}
+        >
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="form-title"
+          >
             <div className="modal-header">
               <div>
-                <span className="eyebrow"><Sparkles size={13} /> NEW SUBMISSION</span>
+                <span className="eyebrow">
+                  <Sparkles size={13} /> NEW SUBMISSION
+                </span>
                 <h2 id="form-title">Assess a product claim</h2>
-                <p>Provide the claim and scientific evidence for AI-assisted assessment.</p>
+                <p>
+                  Provide the claim and scientific evidence for AI-assisted
+                  assessment.
+                </p>
               </div>
-              <button className="icon-button" onClick={() => setShowForm(false)} aria-label="Close">
+              <button
+                className="icon-button"
+                onClick={() => setShowForm(false)}
+                aria-label="Close"
+              >
                 <X size={19} />
               </button>
             </div>
@@ -716,7 +853,9 @@ function App() {
                   required
                   maxLength={200}
                   value={form.productName}
-                  onChange={(event) => updateForm('productName', event.target.value)}
+                  onChange={(event) =>
+                    updateForm("productName", event.target.value)
+                  }
                   placeholder="e.g. Revitalift Clinical"
                 />
               </label>
@@ -728,7 +867,7 @@ function App() {
                   maxLength={2000}
                   rows={3}
                   value={form.claim}
-                  onChange={(event) => updateForm('claim', event.target.value)}
+                  onChange={(event) => updateForm("claim", event.target.value)}
                   placeholder="What does the product claim to do?"
                 />
               </label>
@@ -740,29 +879,49 @@ function App() {
                   maxLength={50000}
                   rows={6}
                   value={form.evidence}
-                  onChange={(event) => updateForm('evidence', event.target.value)}
+                  onChange={(event) =>
+                    updateForm("evidence", event.target.value)
+                  }
                   placeholder="Paste the study summary, methodology, sample size, outcomes and results..."
                 />
-                <small>Include study design, sample size, measurements and statistical results where available.</small>
+                <small>
+                  Include study design, sample size, measurements and
+                  statistical results where available.
+                </small>
               </label>
               <label>
                 Submitted by
                 <input
                   maxLength={100}
                   value={form.submittedBy}
-                  onChange={(event) => updateForm('submittedBy', event.target.value)}
+                  onChange={(event) =>
+                    updateForm("submittedBy", event.target.value)
+                  }
                 />
               </label>
               <div className="form-disclaimer">
                 <ShieldCheck size={17} />
-                <p>AI results are decision support only. A qualified reviewer must verify the evidence before any claim is approved.</p>
+                <p>
+                  AI results are decision support only. A qualified reviewer
+                  must verify the evidence before any claim is approved.
+                </p>
               </div>
               <div className="modal-actions">
-                <button type="button" className="secondary-button" onClick={() => setShowForm(false)}>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setShowForm(false)}
+                >
                   Cancel
                 </button>
-                <button type="submit" className="primary-button">
-                  <Sparkles size={16} /> Add claim <ArrowRight size={15} />
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={isSubmitting}
+                >
+                  <Sparkles size={16} />
+                  {isSubmitting ? "Assessing claim..." : "Add claim"}
+                  {!isSubmitting && <ArrowRight size={15} />}
                 </button>
               </div>
             </form>
@@ -771,17 +930,33 @@ function App() {
       )}
 
       {selectedClaim && (
-        <div className="modal-backdrop" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setSelectedClaim(null);
-        }}>
-          <section className="modal detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedClaim(null);
+          }}
+        >
+          <section
+            className="modal detail-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="detail-title"
+          >
             <div className="modal-header">
               <div>
-                <span className="eyebrow"><FileCheck2 size={13} /> CLAIM DETAILS</span>
+                <span className="eyebrow">
+                  <FileCheck2 size={13} /> CLAIM DETAILS
+                </span>
                 <h2 id="detail-title">{selectedClaim.product}</h2>
-                <p>{selectedClaim.id} · Submitted {selectedClaim.date}</p>
+                <p>
+                  {selectedClaim.id} · Submitted {selectedClaim.date}
+                </p>
               </div>
-              <button className="icon-button" onClick={() => setSelectedClaim(null)} aria-label="Close">
+              <button
+                className="icon-button"
+                onClick={() => setSelectedClaim(null)}
+                aria-label="Close"
+              >
                 <X size={19} />
               </button>
             </div>
@@ -800,17 +975,28 @@ function App() {
                 <div>
                   <span className="detail-label">MODEL CONFIDENCE</span>
                   <strong className="detail-confidence">
-                    {selectedClaim.confidence === null ? '—' : `${selectedClaim.confidence}%`}
+                    {selectedClaim.confidence === null
+                      ? "—"
+                      : `${selectedClaim.confidence}%`}
                   </strong>
                 </div>
               </div>
               <div className="detail-notice">
                 <ShieldCheck size={17} />
-                <p>This prototype view shows claim metadata. The live API integration will populate full AI reasoning and evidence limitations in the next step.</p>
+                <p>
+                  This prototype view shows claim metadata. The live API
+                  integration will populate full AI reasoning and evidence
+                  limitations in the next step.
+                </p>
               </div>
             </div>
             <div className="modal-actions">
-              <button className="secondary-button" onClick={() => setSelectedClaim(null)}>Close</button>
+              <button
+                className="secondary-button"
+                onClick={() => setSelectedClaim(null)}
+              >
+                Close
+              </button>
             </div>
           </section>
         </div>
